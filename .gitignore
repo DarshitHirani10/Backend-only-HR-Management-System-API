@@ -1,0 +1,17 @@
+.venvhr/
+__pycache__/
+*.pyc
+.env
+.vscode/
+migrations/
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*$py.class
+*.so
+.Python
+**/__pycache__/
+**/*.pyc
+**/migrations/
+**/*.py[cod]
+*.code-workspace
