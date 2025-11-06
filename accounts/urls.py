@@ -1,6 +1,6 @@
 from django.urls import path
 from accounts.views import (
-    RegisterUserView, LoginView, LogoutView, ForgotPasswordView, VerifyOtpView, ResetPasswordView, UserListView, ProfileViewUpdate
+    RegisterUserView, LoginView, LogoutView, ForgotPasswordView, VerifyOtpView, ResetPasswordView, UserView, ProfileViewUpdate
 )
 
 urlpatterns = [
@@ -11,7 +11,8 @@ urlpatterns = [
     path('auth/verify_otp/', VerifyOtpView.as_view(), name='verify_otp'),
     path('auth/reset_password/', ResetPasswordView.as_view(), name='reset_password'),
 
-    path('users/', UserListView.as_view(), name='users_list'),
+    path('users/', UserView.as_view(), name='users_list'),
+    path('users/<int:id>/', UserView.as_view(), name='delete-user'),
     path('profile/', ProfileViewUpdate.as_view(), name='users-detail'),
     path('profile/update/<int:id>/', ProfileViewUpdate.as_view(), name='users-update'),
 ]
