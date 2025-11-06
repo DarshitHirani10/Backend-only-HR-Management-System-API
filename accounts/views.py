@@ -194,7 +194,7 @@ class ResetPasswordView(APIView):
 
 
 
-class UserListView(APIView):
+class UserView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         try:
@@ -219,6 +219,30 @@ class UserListView(APIView):
             return Response({"users": data}, status=status.HTTP_200_OK)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    def delete(self, request, id):
+        try:
+            user = request.user
+            target_user = User.objects.filter(id=id).first()
+            if not target_user:
+                return Response({"msg": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            if user.role.name == "admin":
+                if target_user.id == user.id:
+                    return Response({"msg": "Admin cannot delete themselves"}, status=status.HTTP_403_FORBIDDEN)
+                target_user.delete()
+                return Response({"msg": f"User '{target_user.username}' deleted successfully by Admin"}, status=status.HTTP_200_OK)
+            elif user.role.name == "senior":
+                if not target_user.department or target_user.department != user.department:
+                    return Response({"msg": "You can only delete users in your department"}, status=status.HTTP_403_FORBIDDEN)
+                if target_user.role.name in ["junior", "intern"]:
+                    target_user.delete()
+                    return Response({"msg": f"User '{target_user.username}' deleted successfully by Senior"}, status=status.HTTP_200_OK)
+                else:
+                    return Response({"msg": "You can only delete juniors or interns"}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                return Response({"msg": "You do not have permission to delete users"}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({"msg": f"Error deleting user: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProfileViewUpdate(APIView):
