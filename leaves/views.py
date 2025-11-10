@@ -42,7 +42,7 @@ class LeaveListView(APIView):
             return Response({"msg": f"Error fetching leaves: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 class LeaveStatusUpdateView(APIView):
-    def patch(self, request, id):
+    def put(self, request, id):
         try:
             user = request.user
             role = get_user_role(user)

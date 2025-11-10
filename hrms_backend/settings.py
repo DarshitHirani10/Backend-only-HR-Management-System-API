@@ -90,7 +90,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'hrms_backend.wsgi.application'
+# WSGI_APPLICATION = 'hrms_backend.wsgi.application'
 
 
 # Database
@@ -118,6 +118,8 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Kolkata'
+
+ASGI_APPLICATION = "hrms_backend.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
