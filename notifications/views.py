@@ -23,7 +23,7 @@ class NotificationListView(APIView):
 
 
 class MarkNotificationReadView(APIView):
-    def patch(self, request, id):
+    def put(self, request, id):
         try:
             notification = Notification.objects.filter(id=id, user=request.user).first()
             if not notification:

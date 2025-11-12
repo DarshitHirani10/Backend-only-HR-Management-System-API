@@ -36,10 +36,12 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.23
 PyJWT==2.10.1
+pyngrok==7.4.1
 pyOpenSSL==25.3.0
 python-crontab==3.3.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
+PyYAML==6.0.3
 redis==7.0.1
 service-identity==24.2.0
 setuptools==80.9.0
