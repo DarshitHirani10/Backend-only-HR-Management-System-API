@@ -5,6 +5,7 @@ from chat.models import ChatRoom, Message
 from chat.serializers import ChatRoomSerializer, MessageSerializer
 from accounts.models import Department, User
 from django.shortcuts import get_object_or_404
+from notifications.utils import notify_chat_group_added
 import logging
 import re
 
@@ -65,6 +66,13 @@ class CreateGroupRoomView(APIView):
                 u = User.objects.filter(username=uname).first()
                 if u:
                     room.participants.add(u)
+                    # Notify user when added to group chat
+                    try:
+                        notify_chat_group_added(u, room.title, request.user)
+                        logger.info(f"Chat group notification sent to {u.username} for group '{room.title}'")
+                    except Exception as notif_error:
+                        logger.exception(f"Failed to send chat group notification: {notif_error}")
+            
             room.participants.add(request.user)
             room.save()
             serializer = ChatRoomSerializer(room)

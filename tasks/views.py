@@ -4,6 +4,10 @@ from rest_framework import status
 from tasks.models import Task
 from tasks.serializers import TaskSerializer
 from accounts.models import User
+from notifications.utils import notify_task_completed
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_user_role(user):
     return user.role.name if user.role else None
@@ -118,6 +122,14 @@ class TaskStatusUpdateView(APIView):
                 return Response({"msg": "Unauthorized role"}, status=status.HTTP_403_FORBIDDEN)
             task.status = new_status
             task.save()
+            
+            if new_status == "completed":
+                try:
+                    notify_task_completed(task.created_by, task.title, request.user)
+                    logger.info(f"Task completion notification sent to {task.created_by.username} for task '{task.title}'")
+                except Exception as notif_error:
+                    logger.exception(f"Failed to send task completion notification: {notif_error}")
+            
             return Response({"msg": f"Task status updated to '{new_status}'"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"msg": f"Error updating status: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)

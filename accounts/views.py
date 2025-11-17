@@ -3,20 +3,20 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import authenticate, get_user_model
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken
 from django.utils import timezone
-
+import logging
 from accounts.serializers import UserSerializer
 from accounts.models import Role, Department, Designation
 from accounts.utils import create_otp_payload, send_otp_email
+from notifications.utils import notify_password_reset, notify_user_deleted, notify_profile_updated
 
-
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-def get_tokens_for_user(user):
-    refresh = RefreshToken.for_user(user)
-    return {"refresh": str(refresh), "access": str(refresh.access_token)}
+def get_access_token_for_user(user):
+    return str(AccessToken.for_user(user))
 
 
 class RegisterUserView(APIView):
@@ -66,8 +66,6 @@ class RegisterUserView(APIView):
                 phone=phone,
                 address=address
             )
-            # No profile model — we store profile data in User fields (bio/phone/address)
-            # Optionally send welcome email here (omitted)
             return Response({"user": UserSerializer(user).data, "msg": f"User {username} created successfully"}, status=status.HTTP_201_CREATED)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -87,8 +85,12 @@ class LoginView(APIView):
                 return Response({"msg": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
             user.last_login = timezone.now()
             user.save(update_fields=["last_login"])
-            tokens = get_tokens_for_user(user)
-            return Response({"msg": "Login successful", "tokens": tokens, "user": UserSerializer(user).data},status=status.HTTP_200_OK)
+            access_token = get_access_token_for_user(user)
+            return Response({
+                "msg": "Login successful", 
+                "token": access_token, 
+                "user": UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -97,11 +99,6 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         try:
-            refresh_token = request.data.get("refresh")
-            if not refresh_token:
-                return Response({"msg": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
-            token = RefreshToken(refresh_token)
-            token.blacklist()
             return Response({"msg": "Logged out successfully"}, status=status.HTTP_200_OK)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -113,7 +110,6 @@ class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
         try:
-            # email = (request.data or {}).get("email")
             data = request.data or {}
             email = data.get("email")
             if not email:
@@ -136,8 +132,6 @@ class VerifyOtpView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
         try:
-            # email = (request.data or {}).get("email")
-            # code = (request.data or {}).get("code")
             data = request.data or {}
             email = data.get("email")
             code = data.get("code")
@@ -186,7 +180,11 @@ class ResetPasswordView(APIView):
 
             user.set_password(new_password)
             user.save()
-            # clear OTP
+            try:
+                notify_password_reset(user, None)
+                logger.info(f"Password reset notification sent to {user.username}")
+            except Exception as notif_error:
+                logger.exception(f"Failed to send notification: {notif_error}")
             del OTP_STORE[email]
             return Response({"msg": "Password reset successfully"}, status=status.HTTP_200_OK)
         except Exception as exc:
@@ -200,17 +198,14 @@ class UserView(APIView):
         try:
             user = request.user
             qs = User.objects.none()
-            # Admin sees all
             if user.role and user.role.name == "admin":
                 qs = User.objects.all()
             elif user.role and user.role.name == "senior":
-                # senior sees users in same department excluding himself
                 if user.department:
                     qs = User.objects.filter(department=user.department).exclude(id=user.id)
                 else:
                     qs = User.objects.none()
             elif user.role and user.role.name == "junior":
-                # junior sees interns in same department
                 if user.department:
                     qs = User.objects.filter(department=user.department, role__name="intern")
             elif user.role and user.role.name == "intern":
@@ -229,12 +224,24 @@ class UserView(APIView):
             if user.role.name == "admin":
                 if target_user.id == user.id:
                     return Response({"msg": "Admin cannot delete themselves"}, status=status.HTTP_403_FORBIDDEN)
+                try:
+                    notify_user_deleted(target_user, user)
+                    logger.info(f"User deletion notification sent to {target_user.username}")
+                except Exception as notif_error:
+                    logger.exception(f"Failed to send deletion notification: {notif_error}")
+                
                 target_user.delete()
                 return Response({"msg": f"User '{target_user.username}' deleted successfully by Admin"}, status=status.HTTP_200_OK)
             elif user.role.name == "senior":
                 if not target_user.department or target_user.department != user.department:
                     return Response({"msg": "You can only delete users in your department"}, status=status.HTTP_403_FORBIDDEN)
                 if target_user.role.name in ["junior", "intern"]:
+                    try:
+                        notify_user_deleted(target_user, user)
+                        logger.info(f"User deletion notification sent to {target_user.username}")
+                    except Exception as notif_error:
+                        logger.exception(f"Failed to send deletion notification: {notif_error}")
+                    
                     target_user.delete()
                     return Response({"msg": f"User '{target_user.username}' deleted successfully by Senior"}, status=status.HTTP_200_OK)
                 else:
@@ -292,6 +299,13 @@ class ProfileViewUpdate(APIView):
                 if key in allowed_fields and hasattr(user, key):
                     setattr(user, key, value)
         user.save()
+        
+        try:
+            notify_profile_updated(user, current_user)
+            logger.info(f"Profile update notification sent to {user.username}")
+        except Exception as notif_error:
+            logger.exception(f"Failed to send profile update notification: {notif_error}")
+        
         serializer = UserSerializer(user)
         return Response(serializer.data, status=200)
 

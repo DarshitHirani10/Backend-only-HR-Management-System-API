@@ -5,7 +5,7 @@ from channels.db import database_sync_to_async
 from urllib.parse import parse_qs
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
-from .models import Notification
+from notifications.models import Notification
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

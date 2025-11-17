@@ -4,6 +4,10 @@ from rest_framework import status
 from leaves.models import Leave
 from leaves.serializers import LeaveSerializer
 from accounts.models import User
+from notifications.utils import notify_leave_status
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_role(user):
@@ -56,6 +60,13 @@ class LeaveStatusUpdateView(APIView):
                 return Response({"msg": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
             leave.status = new_status
             leave.save()
+            
+            try:
+                notify_leave_status(leave.user, new_status, user)
+                logger.info(f"Leave status notification sent to {leave.user.username} - Status: {new_status}")
+            except Exception as notif_error:
+                logger.exception(f"Failed to send leave status notification: {notif_error}")
+            
             return Response({"msg": f"Leave {new_status.lower()} successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"msg": f"Error updating leave: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
